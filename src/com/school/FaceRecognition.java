@@ -13,14 +13,22 @@ import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfInt;
 import org.opencv.face.EigenFaceRecognizer;
+import org.opencv.face.FisherFaceRecognizer;
+import org.opencv.face.LBPHFaceRecognizer;
 import org.opencv.imgcodecs.Imgcodecs;
+
+import com.apple.laf.AquaButtonLabeledUI.LabeledButtonBorder;
 
 public class FaceRecognition {
 	
 	String trainingDataFile;
 	String nameMapDataFile;
 	EigenFaceRecognizer efr;
+	LBPHFaceRecognizer lfr;
+	FisherFaceRecognizer ffr;
 	Map<Integer, String> nameMap = new HashMap<Integer, String>();
+	
+	int count = 1;
 
 	
 	public FaceRecognition(String trainingDataFile, String nameMapDataFile) {
@@ -36,9 +44,17 @@ public class FaceRecognition {
 		
 		MatOfInt labelsMat=new MatOfInt();
 		labelsMat.fromList(labels);
+		
 		efr = EigenFaceRecognizer.create();
-		System.out.println("Starting training...");
+		lfr = LBPHFaceRecognizer.create();
+		ffr = FisherFaceRecognizer.create();
+		
+		System.out.println("Starting training on " + images.size() + " data points ...");
+		
 		efr.train(images, labelsMat);
+		lfr.train(images, labelsMat);
+		ffr.train(images, labelsMat);
+
 		System.out.println("Starting completed...");
 		readNameMapData();
 	}
@@ -46,8 +62,24 @@ public class FaceRecognition {
 	public String predict(Mat mat) {
 		int[] outLabel=new int[1];
 		double[] outConf=new double[1];
-		System.out.println("Starting Prediction...");
+		//System.out.print("found: ");
+		
 		efr.predict(mat, outLabel, outConf);
+		String efrName = nameMap.get(outLabel[0]);
+		//System.out.print(" E=" + efrName);
+
+		ffr.predict(mat, outLabel, outConf);
+		String ffrName = nameMap.get(outLabel[0]);
+		//System.out.print(" F=" + efrName);
+
+		lfr.predict(mat, outLabel, outConf);
+		String lfrName = nameMap.get(outLabel[0]);
+		//System.out.print(" L=" + efrName);
+		
+		if (efrName != null && efrName.contentEquals(ffrName) && efrName.equals(lfrName)) {
+			System.out.println("Found: " + efrName + "    " + count++);
+		}
+
 		return nameMap.get(outLabel[0]);
 	}
 

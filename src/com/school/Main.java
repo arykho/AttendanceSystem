@@ -54,9 +54,13 @@ public class Main
 	static JLabel[] jlabels = new JLabel[GRID_SIZE];
 	static JTextField[] textLabels = new JTextField[GRID_SIZE];
 	static Mat[] faceImages = new Mat[GRID_SIZE];
-	static volatile boolean snapped = false;
+	static boolean snapped = false;
 	static JButton snapButton = new JButton("Snap");
 	static JButton saveButton = new JButton("Save");
+	static JButton detectButton = new JButton("Detection");
+	static JButton recognizeButton = new JButton("Recognition");
+	static boolean recognitionMode;
+	static FaceRecognition faceRecognition;
 	
 	public static void main(String[] args) {
 		System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
@@ -66,7 +70,7 @@ public class Main
 	    
 	    JFrame jframe = new JFrame("Title");
 	    jframe.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-	    jframe.setPreferredSize(new Dimension(1000, 600));
+	    jframe.setPreferredSize(new Dimension(1100, 600));
 	    JLabel vidpanel = new JLabel();
 	    vidpanel.setPreferredSize(new Dimension(600, 300));
 	    
@@ -78,7 +82,13 @@ public class Main
         snapButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
+				for(int i = 1; i < GRID_SIZE; ++i) {
+					jlabels[i].setIcon(null);
+					textLabels[i].setText("");
+					faceImages[i] = null;
+				}
 				snapped = true;
+				saveButton.setEnabled(true);
 			}
 		});
         saveButton.addActionListener(new ActionListener() {
@@ -91,6 +101,9 @@ public class Main
 							imageName = imageName.trim().toLowerCase();
 							try {
 								saveImageFile(imageName, faceImages[i]);
+								jlabels[i].setIcon(null);
+								textLabels[i].setText("");
+								faceImages[i] = null;
 							} catch (Exception err) {
 								err.printStackTrace();
 							}
@@ -105,10 +118,40 @@ public class Main
 			}
 		});
         
+        detectButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+		        detectButton.setEnabled(false);
+		        recognizeButton.setEnabled(true);
+		        snapButton.setEnabled(true);
+		        recognitionMode = false;
+			}
+		});
+        
+        recognizeButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+		        detectButton.setEnabled(true);
+		        recognizeButton.setEnabled(false);
+		        snapButton.setEnabled(false);
+		        saveButton.setEnabled(false);
+		        faceRecognition = new FaceRecognition(trainingDataFile, nameMapDataFile);
+		        faceRecognition.train();
+		        recognitionMode = true;
+			}
+		});
+        
+        recognitionMode = false;
+        detectButton.setEnabled(false);
+        saveButton.setEnabled(false);
+        
         JPanel cmdPanel = new JPanel();
-        cmdPanel.setLayout(new BorderLayout());
-        cmdPanel.add(snapButton, BorderLayout.NORTH);
-        cmdPanel.add(saveButton, BorderLayout.SOUTH);
+        cmdPanel.setLayout(new GridLayout(4, 1));
+        cmdPanel.add(snapButton);
+        cmdPanel.add(saveButton);
+        cmdPanel.add(detectButton);
+        cmdPanel.add(recognizeButton);
+
     	iconPanel.add(cmdPanel);
     	
         for(int i = 1; i < GRID_SIZE; ++i) {
@@ -165,17 +208,16 @@ public class Main
 			int height = grayFrame.rows();
 			if (Math.round(height * 0.2f) > 0)
 			{
-				absoluteFaceSize = Math.round(height * 0.01f);
+				absoluteFaceSize = Math.round(height * 0.1f);
 			}
 				
 		faceCascade.detectMultiScale(grayFrame, faces, 1.1, 2, 0 | Objdetect.CASCADE_SCALE_IMAGE,
 				new Size(absoluteFaceSize, absoluteFaceSize), new Size(height,height));
 				
 		Rect[] facesArray = faces.toArray();
-		System.out.println("Number of faces detected = "+facesArray.length);
 		for (int i = 0; i < facesArray.length; i++) {
 			Imgproc.rectangle(frame, facesArray[i].tl(), facesArray[i].br(), new Scalar(0, 255, 0), 2);
-			if (!isSnapped) {
+			if (!isSnapped && !recognitionMode) {
 				continue;
 			}
 			Rect rect = facesArray[i];
@@ -188,6 +230,12 @@ public class Main
 				if (newRect.y < 0) {
 					newRect.y = 0;
 				}
+				if (frame.height() < newRect.y + newRect.height) {
+					newRect.y = frame.height() - newRect.height - 1;
+					if (newRect.y < 0) {
+						continue;
+					}
+				}
 			} else {
 				newRect.height = rect.height;
 				newRect.y = rect.y;
@@ -197,14 +245,24 @@ public class Main
 					newRect.x = 0;
 				}
 			}
+			try {
 			Mat cropped = new Mat(grayFrame, newRect);
 			Size sz = new Size(92,112);
-			//Mat resized = new Mat();
-			Imgproc.resize(cropped, cropped, sz);
-			Image scaledImage = Mat2BufferedImage(cropped).getScaledInstance(jlabels[i+1].getWidth(),
-            		-1, Image.SCALE_FAST);
-			jlabels[i+1].setIcon(new ImageIcon(scaledImage));
-			faceImages[i+1] = cropped;
+			Mat resized = new Mat();
+			Imgproc.resize(cropped, resized, sz);
+			if (recognitionMode && faceRecognition != null) {
+				String faceName = faceRecognition.predict(resized);
+				//System.out.println("Found: " + faceName);
+			} else if (snapped){
+				Image scaledImage = Mat2BufferedImage(resized).getScaledInstance(jlabels[i+1].getWidth(),
+	            		-1, Image.SCALE_FAST);
+				jlabels[i+1].setIcon(new ImageIcon(scaledImage));
+				faceImages[i+1] = resized;
+			}
+			} catch (Exception e) {
+				System.out.println(frame.size() + " [" + rect.x + ", " + rect.y + "], "+ " [" + newRect.x + ", " + newRect.y + "] " + newRect.size());
+				e.printStackTrace();
+			}
 		}
 			
 	}
@@ -239,7 +297,7 @@ public class Main
 		int seq = 1;
 		File imgFile = null;
 		while (seq < 100) {
-			imgFile = new File(nameDir, "" + seq);
+			imgFile = new File(nameDir, "" + seq + ".pgm");
 			if (imgFile.exists()) {
 				seq++;
 				continue;
@@ -247,7 +305,7 @@ public class Main
 			break;
 		}
 		if (imgFile != null) {
-			Imgcodecs.imwrite(imgFile.getAbsolutePath() + ".pgm", mat);
+			Imgcodecs.imwrite(imgFile.getAbsolutePath(), mat);
 		}
 		
 	}
@@ -282,7 +340,7 @@ public class Main
 	    	List<String> imgFiles = faceFiles.get(i);
 	    	for(int f = 0; f < imgFiles.size(); f++) {
 	    		String resourceDir = basePath + "/resources";
-	    		imgPathWriter.append(imgFiles.get(i).substring(resourceDir.length()) + ";" + (i+1) + "\n");
+	    		imgPathWriter.append(imgFiles.get(f).substring(resourceDir.length()) + ";" + (i+1) + "\n");
 	    	}
 	    }
 	    nameMapWriter.close();
