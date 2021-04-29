@@ -26,6 +26,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -63,6 +64,9 @@ public class Main
 	static FaceRecognition faceRecognition;
 	
 	public static void main(String[] args) {
+		
+		Connection conn = new SQLiteManager().getConnection();
+		
 		System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
 
 		Mat frame = new Mat();
