@@ -27,6 +27,9 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -62,10 +65,11 @@ public class Main
 	static JButton recognizeButton = new JButton("Recognition");
 	static boolean recognitionMode;
 	static FaceRecognition faceRecognition;
+	static SQLiteManager sqlManager;
 	
 	public static void main(String[] args) {
-		
-		Connection conn = new SQLiteManager().getConnection();
+		sqlManager = new SQLiteManager();
+		sqlManager.initTables();
 		
 		System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
 
