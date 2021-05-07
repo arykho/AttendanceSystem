@@ -6,18 +6,18 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-import org.opencv.core.Core;
-import org.opencv.core.Mat;
-import org.opencv.core.MatOfInt;
-import org.opencv.face.EigenFaceRecognizer;
-import org.opencv.face.FisherFaceRecognizer;
-import org.opencv.face.LBPHFaceRecognizer;
-import org.opencv.imgcodecs.Imgcodecs;
+import java.nio.IntBuffer;
 
-import com.apple.laf.AquaButtonLabeledUI.LabeledButtonBorder;
+import org.bytedeco.opencv.opencv_core.Mat;
+import org.bytedeco.opencv.opencv_core.MatVector;
+import org.bytedeco.opencv.opencv_face.EigenFaceRecognizer;
+import org.bytedeco.opencv.opencv_face.FisherFaceRecognizer;
+import org.bytedeco.opencv.opencv_face.LBPHFaceRecognizer;
+import org.bytedeco.opencv.global.opencv_imgcodecs;
+
+import static org.bytedeco.opencv.global.opencv_core.*;
 
 public class FaceRecognition {
 	
@@ -38,22 +38,28 @@ public class FaceRecognition {
 	}
 	
 	public void train() {
-		ArrayList<Mat> images=new ArrayList<>();
-		ArrayList<Integer> labels=new ArrayList<>();
+		ArrayList<Mat> images = new ArrayList<>();
+		ArrayList<Integer> labels = new ArrayList<>();
 		readTrainingData(trainingDataFile, images, labels);
 		
-		MatOfInt labelsMat=new MatOfInt();
-		labelsMat.fromList(labels);
+		MatVector matImages = new MatVector(images.size());
+		Mat matLabels = new Mat(images.size(), 1, CV_32SC1);
+        IntBuffer labelsBuf = matLabels.createBuffer();
 		
+        for(int i = 0; i < images.size(); ++i) {
+        	matImages.put(i, images.get(i));
+        	labelsBuf.put(i, labels.get(i));
+        }
+        
 		efr = EigenFaceRecognizer.create();
 		lfr = LBPHFaceRecognizer.create();
 		ffr = FisherFaceRecognizer.create();
 		
 		System.out.println("Starting training on " + images.size() + " data points ...");
 		
-		efr.train(images, labelsMat);
-		lfr.train(images, labelsMat);
-		ffr.train(images, labelsMat);
+		efr.train(matImages, matLabels);
+		lfr.train(matImages, matLabels);
+		ffr.train(matImages, matLabels);
 
 		System.out.println("Starting completed...");
 		readNameMapData();
@@ -90,9 +96,9 @@ public class FaceRecognition {
 		
 		String line;
 		while((line=br.readLine())!=null){
-			String[] tokens=line.split("\\;");
-			String imgPath = Main.basePath + "/resources" + tokens[0];
-			Mat readImage=Imgcodecs.imread(imgPath, 0);
+			String[] tokens = line.split("\\;");
+			String imgPath = Main.dataDir + tokens[0];
+			Mat readImage = opencv_imgcodecs.imread(imgPath, 0);
 			images.add(readImage);
 			labels.add(Integer.parseInt(tokens[1]));
 		}

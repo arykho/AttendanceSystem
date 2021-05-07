@@ -1,19 +1,19 @@
 package com.school;
 
-import org.opencv.core.CvType;
-import org.opencv.core.Mat;
-import org.opencv.core.MatOfRect;
-import org.opencv.core.Rect;
-import org.opencv.core.Scalar;
-import org.opencv.core.Size;
-import org.opencv.imgcodecs.Imgcodecs;
-import org.opencv.imgproc.Imgproc;
-import org.opencv.objdetect.CascadeClassifier;
-import org.opencv.objdetect.Objdetect;
-import org.opencv.videoio.VideoCapture;
+import org.bytedeco.opencv.opencv_core.Mat;
+import org.bytedeco.opencv.opencv_core.Rect;
+import org.bytedeco.opencv.opencv_core.RectVector;
+import org.bytedeco.opencv.opencv_core.Scalar;
+import org.bytedeco.opencv.opencv_core.Size;
+import org.bytedeco.opencv.global.opencv_imgcodecs;
+import org.bytedeco.opencv.global.opencv_imgproc;
+import org.bytedeco.opencv.opencv_objdetect.CascadeClassifier;
+import org.bytedeco.opencv.opencv_videoio.VideoCapture;
+import static org.bytedeco.opencv.global.opencv_objdetect.*;
+import static org.bytedeco.opencv.global.opencv_imgproc.*;
+
 
 import java.awt.BorderLayout;
-import java.awt.Button;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.GridLayout;
@@ -26,10 +26,9 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,11 +37,7 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JTextArea;
 import javax.swing.JTextField;
-import javax.swing.SwingConstants;
-
-import org.opencv.core.Core;
 
 public class Main
 {
@@ -50,10 +45,10 @@ public class Main
 	final static int GRID_HEIGHT = 4;
 	final static int GRID_SIZE = GRID_WIDTH*GRID_HEIGHT;
 
-	public static String basePath = System.getProperty("user.dir");
-	public static String classifierPath1 = basePath+"/resources/classifiers/haarcascade_frontalface_alt.xml";
-	public static String trainingDataFile = basePath+"/resources/faces/training.txt";
-	public static String nameMapDataFile = basePath+"/resources/faces/namemap.txt";
+	public static String classifierPath1;
+	public static String trainingDataFile;
+	public static String nameMapDataFile;
+	public static String dataDir;
 
 	static JLabel[] jlabels = new JLabel[GRID_SIZE];
 	static JTextField[] textLabels = new JTextField[GRID_SIZE];
@@ -68,11 +63,11 @@ public class Main
 	static SQLiteManager sqlManager;
 	
 	public static void main(String[] args) {
-		sqlManager = new SQLiteManager();
+		createDataDirectory();
+		
+		sqlManager = new SQLiteManager(dataDir);
 		sqlManager.initTables();
 		
-		System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
-
 		Mat frame = new Mat();
 	    VideoCapture camera = new VideoCapture(0);
 	    
@@ -180,7 +175,7 @@ public class Main
 	    jframe.pack();
 
 	    try {
-	    while (true) {
+	      while (true) {
 	        if (camera.read(frame)) {
 
 	        	if (snapped) {
@@ -189,29 +184,30 @@ public class Main
 	        	} else {
 	        		detectFace(frame, false);
 	        	}
+	        	
 				Image scaledImage = Mat2BufferedImage(frame).getScaledInstance(vidpanel.getWidth(),
 	            		-1, Image.SCALE_FAST);
+				
 	            vidpanel.setIcon(new ImageIcon(scaledImage));
 	            vidpanel.repaint();
-	    	    //jframe.pack();
-
 	        }
-	    }
+	      }
 	    } catch(Exception e) {
+	    	camera.close();
 	    	e.printStackTrace();
-	    	};
+	    };
 	}
 	
 	public static void detectFace(Mat frame, boolean isSnapped) throws IOException
 	{
-		MatOfRect faces = new MatOfRect();
+		RectVector faces = new RectVector();
 		Mat grayFrame = new Mat();
 		int absoluteFaceSize=0;
-		CascadeClassifier faceCascade=new CascadeClassifier();
+		CascadeClassifier faceCascade = new CascadeClassifier();
 		
 		faceCascade.load(classifierPath1);
-		Imgproc.cvtColor(frame, grayFrame, Imgproc.COLOR_BGR2GRAY);
-		Imgproc.equalizeHist(grayFrame, grayFrame);
+		opencv_imgproc.cvtColor(frame, grayFrame, COLOR_BGR2GRAY);
+		opencv_imgproc.equalizeHist(grayFrame, grayFrame);
 		
 			int height = grayFrame.rows();
 			if (Math.round(height * 0.2f) > 0)
@@ -219,60 +215,62 @@ public class Main
 				absoluteFaceSize = Math.round(height * 0.1f);
 			}
 				
-		faceCascade.detectMultiScale(grayFrame, faces, 1.1, 2, 0 | Objdetect.CASCADE_SCALE_IMAGE,
+		faceCascade.detectMultiScale(grayFrame, faces, 1.1, 2, 0 | CASCADE_SCALE_IMAGE,
 				new Size(absoluteFaceSize, absoluteFaceSize), new Size(height,height));
 				
-		Rect[] facesArray = faces.toArray();
+		Rect[] facesArray = faces.get();
 		for (int i = 0; i < facesArray.length; i++) {
-			Imgproc.rectangle(frame, facesArray[i].tl(), facesArray[i].br(), new Scalar(0, 255, 0), 2);
+			opencv_imgproc.rectangle(frame, facesArray[i].tl(), facesArray[i].br(), new Scalar(0, 255, 0, 2));
 			if (!isSnapped && !recognitionMode) {
 				continue;
 			}
 			Rect rect = facesArray[i];
 			Rect newRect = new Rect();
-			if (rect.width*112/92 > rect.height) {
-				newRect.width = rect.width;
-				newRect.x = rect.x;
-				newRect.height = rect.width * 112 / 92;
-				newRect.y = rect.y - (newRect.height - rect.height)/2;
-				if (newRect.y < 0) {
-					newRect.y = 0;
+			if (rect.width()*112/92 > rect.height()) {
+				newRect.width(rect.width());
+				newRect.x(rect.x());
+				newRect.height(rect.width() * 112 / 92);
+				newRect.y(rect.y() - (newRect.height() - rect.height())/2);
+				if (newRect.y() < 0) {
+					newRect.y(0);
 				}
-				if (frame.height() < newRect.y + newRect.height) {
-					newRect.y = frame.height() - newRect.height - 1;
-					if (newRect.y < 0) {
+				if (frame.arrayHeight() < newRect.y() + newRect.height()) {
+					newRect.y(frame.arrayHeight() - newRect.height() - 1);
+					if (newRect.y() < 0) {
 						continue;
 					}
 				}
 			} else {
-				newRect.height = rect.height;
-				newRect.y = rect.y;
-				newRect.width = rect.height * 92 / 112;
-				newRect.x = rect.x - (newRect.width - rect.width)/2;
-				if (newRect.x < 0) {
-					newRect.x = 0;
+				newRect.height(rect.height());
+				newRect.y(rect.y());
+				newRect.width(rect.height() * 92 / 112);
+				newRect.x(rect.x() - (newRect.width() - rect.width())/2);
+				if (newRect.x() < 0) {
+					newRect.x(0);
 				}
 			}
+			
 			try {
-			Mat cropped = new Mat(grayFrame, newRect);
-			Size sz = new Size(92,112);
-			Mat resized = new Mat();
-			Imgproc.resize(cropped, resized, sz);
-			if (recognitionMode && faceRecognition != null) {
-				String faceName = faceRecognition.predict(resized);
-				//System.out.println("Found: " + faceName);
-			} else if (snapped){
-				Image scaledImage = Mat2BufferedImage(resized).getScaledInstance(jlabels[i+1].getWidth(),
+				Mat cropped = new Mat(grayFrame, newRect);
+				Size sz = new Size(92,112);
+				Mat resized = new Mat();
+				opencv_imgproc.resize(cropped, resized, sz);
+				if (recognitionMode && faceRecognition != null) {
+					String faceName = faceRecognition.predict(resized);
+					//System.out.println("Found: " + faceName);
+				} else if (snapped){
+					Image scaledImage = Mat2BufferedImage(resized).getScaledInstance(jlabels[i+1].getWidth(),
 	            		-1, Image.SCALE_FAST);
-				jlabels[i+1].setIcon(new ImageIcon(scaledImage));
-				faceImages[i+1] = resized;
-			}
+					jlabels[i+1].setIcon(new ImageIcon(scaledImage));
+					faceImages[i+1] = resized;
+				}
 			} catch (Exception e) {
-				System.out.println(frame.size() + " [" + rect.x + ", " + rect.y + "], "+ " [" + newRect.x + ", " + newRect.y + "] " + newRect.size());
+				System.out.println(frame.size() + " [" + rect.x() + ", " + rect.y()
+				+ "], "+ " [" + newRect.x() + ", " + newRect.y() + "] " + newRect.size());
 				e.printStackTrace();
 			}
 		}
-			
+		faceCascade.close();
 	}
 
 	
@@ -284,7 +282,7 @@ public class Main
      }
      int bufferSize = m.channels()*m.cols()*m.rows();
      byte [] b = new byte[bufferSize];
-     m.get(0,0,b);
+     m.data().get(b);
      BufferedImage image = new BufferedImage(m.cols(),m.rows(), type);
      final byte[] targetPixels = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
      System.arraycopy(b, 0, targetPixels, 0, b.length);  
@@ -292,12 +290,12 @@ public class Main
     }
     
 	private static void saveImageFile(String imageName, Mat mat) {
-		File dataDir = new File(basePath + "/resources/faces");
-		if (!dataDir.exists()){
-			dataDir.mkdir();
+		File faceDataDir = new File(dataDir + "/faces");
+		if (!faceDataDir.exists()){
+			faceDataDir.mkdir();
 		}
 		
-		File nameDir = new File(dataDir, imageName);
+		File nameDir = new File(faceDataDir, imageName);
 		if (!nameDir.exists()) {
 			nameDir.mkdir();
 		}
@@ -313,7 +311,7 @@ public class Main
 			break;
 		}
 		if (imgFile != null) {
-			Imgcodecs.imwrite(imgFile.getAbsolutePath(), mat);
+			opencv_imgcodecs.imwrite(imgFile.getAbsolutePath(), mat);
 		}
 		
 	}
@@ -321,8 +319,8 @@ public class Main
 	private static void createTrainingList() throws Exception {
 		List<String> faceNames = new ArrayList<String>();
 		List<List<String>> faceFiles = new ArrayList<List<String>>();
-		File dataDir = new File(basePath + "/resources/faces");
-	    for (File faceDir : dataDir.listFiles()) {
+		File faceDataDir = new File(dataDir + "/faces");
+	    for (File faceDir : faceDataDir.listFiles()) {
 	        if (!faceDir.isDirectory()) {
 	        	continue;
 	        }
@@ -347,7 +345,7 @@ public class Main
 	    	nameMapWriter.append(faceName + ";" + (i+1) + "\n");
 	    	List<String> imgFiles = faceFiles.get(i);
 	    	for(int f = 0; f < imgFiles.size(); f++) {
-	    		String resourceDir = basePath + "/resources";
+	    		String resourceDir = dataDir;
 	    		imgPathWriter.append(imgFiles.get(f).substring(resourceDir.length()) + ";" + (i+1) + "\n");
 	    	}
 	    }
@@ -355,5 +353,52 @@ public class Main
 	    imgPathWriter.close();
 
 	}
+	
+	static String createDataDirectory() {
+		String basePath = System.getProperty("user.dir");
+		File dataDirFile = new File(basePath + "/resources");
+		if (dataDirFile.exists()) {
+			dataDir = dataDirFile.getPath();
+			classifierPath1 = dataDir + "/classifiers/haarcascade_frontalface_alt.xml";
+			nameMapDataFile = dataDir + "/faces/namemap.txt";
+			trainingDataFile = dataDir + "/faces/training.txt";
+		} else {
+			dataDir = basePath;
+			File classifierDir = new File(dataDir + "/classifiers");
+			if (!classifierDir.exists()) {
+				classifierDir.mkdir();
+			}
+			classifierPath1 = classifierDir.getAbsolutePath() + "/haarcascade_frontalface_alt.xml";
+			saveResource("classifiers/haarcascade_frontalface_alt.xml",	classifierPath1);
+
+			File faceDir = new File(basePath + "/faces");
+			if (!faceDir.exists()) {
+				faceDir.mkdir();
+			}
+			nameMapDataFile = faceDir.getPath() + "/namemap.txt";
+			trainingDataFile = faceDir.getPath() + "/training.txt";
+		}
+		
+		System.out.println("datadir=" + dataDir);
+		System.out.println("classifierPath1=" + classifierPath1);
+		System.out.println("nameMapDataFile=" + nameMapDataFile);
+		System.out.println("trainingDataFile=" + trainingDataFile);
+		
+		return dataDir;
+	}
+	
+    static void saveResource(String resourcePath, String savePath) {
+    	Main m = new Main();
+        ClassLoader classLoader = m.getClass().getClassLoader();
+        InputStream inputStream = classLoader.getResourceAsStream(resourcePath);
+        System.out.println("resource dir " + inputStream);
+	    File saveFile = new File(savePath);
+	    try {
+			Files.copy(inputStream, saveFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+    }
+
 
 }

@@ -9,12 +9,12 @@ import org.sqlite.SQLiteDataSource;
 public class SQLiteManager {
 	private SQLiteDataSource ds;
 	private Connection conn;
-	public static String basePath = System.getProperty("user.dir");
+	public static String basePath;
 
-	SQLiteManager() {
+	SQLiteManager(String basePath) {
 		try {
 			ds = new SQLiteDataSource();
-			ds.setUrl("jdbc:sqlite:" + basePath + "/resources/sqlite.db");
+			ds.setUrl("jdbc:sqlite:" + basePath + "/sqlite.db");
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.exit(0);
