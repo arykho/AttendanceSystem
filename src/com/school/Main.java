@@ -357,27 +357,28 @@ public class Main
 	static String createDataDirectory() {
 		String basePath = System.getProperty("user.dir");
 		File dataDirFile = new File(basePath + "/resources");
-		if (dataDirFile.exists()) {
-			dataDir = dataDirFile.getPath();
-			classifierPath1 = dataDir + "/classifiers/haarcascade_frontalface_alt.xml";
-			nameMapDataFile = dataDir + "/faces/namemap.txt";
-			trainingDataFile = dataDir + "/faces/training.txt";
-		} else {
-			dataDir = basePath;
-			File classifierDir = new File(dataDir + "/classifiers");
+		dataDir = dataDirFile.getPath();
+		if (!dataDirFile.exists()) {
+			dataDirFile.mkdir();
+			File classifierDir = new File(dataDirFile + "/classifiers");
 			if (!classifierDir.exists()) {
 				classifierDir.mkdir();
 			}
 			classifierPath1 = classifierDir.getAbsolutePath() + "/haarcascade_frontalface_alt.xml";
-			saveResource("classifiers/haarcascade_frontalface_alt.xml",	classifierPath1);
+			saveResource("haarcascade_frontalface_alt.xml",
+					classifierPath1);
 
-			File faceDir = new File(basePath + "/faces");
+			File faceDir = new File(dataDirFile + "/faces");
 			if (!faceDir.exists()) {
 				faceDir.mkdir();
 			}
 			nameMapDataFile = faceDir.getPath() + "/namemap.txt";
 			trainingDataFile = faceDir.getPath() + "/training.txt";
 		}
+		
+		classifierPath1 = dataDir + "/classifiers/haarcascade_frontalface_alt.xml";
+		nameMapDataFile = dataDir + "/faces/namemap.txt";
+		trainingDataFile = dataDir + "/faces/training.txt";
 		
 		System.out.println("datadir=" + dataDir);
 		System.out.println("classifierPath1=" + classifierPath1);
@@ -388,6 +389,7 @@ public class Main
 	}
 	
     static void saveResource(String resourcePath, String savePath) {
+    	System.out.println(resourcePath + ", " + savePath);
     	Main m = new Main();
         ClassLoader classLoader = m.getClass().getClassLoader();
         InputStream inputStream = classLoader.getResourceAsStream(resourcePath);
