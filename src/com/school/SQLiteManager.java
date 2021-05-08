@@ -1,5 +1,6 @@
 package com.school;
 
+import java.io.File;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -14,7 +15,7 @@ public class SQLiteManager {
 	SQLiteManager(String basePath) {
 		try {
 			ds = new SQLiteDataSource();
-			ds.setUrl("jdbc:sqlite:" + basePath + "/sqlite.db");
+			ds.setUrl("jdbc:sqlite:" + basePath + File.separator + "sqlite.db");
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.exit(0);

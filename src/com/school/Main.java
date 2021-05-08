@@ -28,6 +28,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
@@ -177,7 +178,6 @@ public class Main
 	    try {
 	      while (true) {
 	        if (camera.read(frame)) {
-
 	        	if (snapped) {
 	        		detectFace(frame, true);
 	        		snapped = false;
@@ -209,18 +209,17 @@ public class Main
 		opencv_imgproc.cvtColor(frame, grayFrame, COLOR_BGR2GRAY);
 		opencv_imgproc.equalizeHist(grayFrame, grayFrame);
 		
-			int height = grayFrame.rows();
-			if (Math.round(height * 0.2f) > 0)
-			{
-				absoluteFaceSize = Math.round(height * 0.1f);
-			}
+		int height = grayFrame.rows();
+		if (Math.round(height * 0.2f) > 0) {
+			absoluteFaceSize = Math.round(height * 0.1f);
+		}
 				
 		faceCascade.detectMultiScale(grayFrame, faces, 1.1, 2, 0 | CASCADE_SCALE_IMAGE,
 				new Size(absoluteFaceSize, absoluteFaceSize), new Size(height,height));
 				
 		Rect[] facesArray = faces.get();
 		for (int i = 0; i < facesArray.length; i++) {
-			opencv_imgproc.rectangle(frame, facesArray[i].tl(), facesArray[i].br(), new Scalar(0, 255, 0, 2));
+			opencv_imgproc.rectangle(frame, facesArray[i], new Scalar(0, 255, 0, 255), 3, 1, 0);
 			if (!isSnapped && !recognitionMode) {
 				continue;
 			}
@@ -290,7 +289,7 @@ public class Main
     }
     
 	private static void saveImageFile(String imageName, Mat mat) {
-		File faceDataDir = new File(dataDir + "/faces");
+		File faceDataDir = new File(dataDir + File.separator + "faces");
 		if (!faceDataDir.exists()){
 			faceDataDir.mkdir();
 		}
@@ -319,7 +318,7 @@ public class Main
 	private static void createTrainingList() throws Exception {
 		List<String> faceNames = new ArrayList<String>();
 		List<List<String>> faceFiles = new ArrayList<List<String>>();
-		File faceDataDir = new File(dataDir + "/faces");
+		File faceDataDir = new File(dataDir + File.separator + "faces");
 	    for (File faceDir : faceDataDir.listFiles()) {
 	        if (!faceDir.isDirectory()) {
 	        	continue;
@@ -356,29 +355,30 @@ public class Main
 	
 	static String createDataDirectory() {
 		String basePath = System.getProperty("user.dir");
-		File dataDirFile = new File(basePath + "/resources");
+		File dataDirFile = new File(basePath + File.separator + "resources");
 		dataDir = dataDirFile.getPath();
 		if (!dataDirFile.exists()) {
 			dataDirFile.mkdir();
-			File classifierDir = new File(dataDirFile + "/classifiers");
+			File classifierDir = new File(dataDirFile + File.separator + "classifiers");
 			if (!classifierDir.exists()) {
 				classifierDir.mkdir();
 			}
-			classifierPath1 = classifierDir.getAbsolutePath() + "/haarcascade_frontalface_alt.xml";
+			classifierPath1 = classifierDir.getAbsolutePath() + File.separator
+					+ "haarcascade_frontalface_alt.xml";
 			saveResource("haarcascade_frontalface_alt.xml",
 					classifierPath1);
 
-			File faceDir = new File(dataDirFile + "/faces");
+			File faceDir = new File(dataDirFile + File.separator + "faces");
 			if (!faceDir.exists()) {
 				faceDir.mkdir();
 			}
-			nameMapDataFile = faceDir.getPath() + "/namemap.txt";
-			trainingDataFile = faceDir.getPath() + "/training.txt";
+			nameMapDataFile = faceDir.getPath() + File.separator + "namemap.txt";
+			trainingDataFile = faceDir.getPath() + File.separator + "training.txt";
 		}
 		
-		classifierPath1 = dataDir + "/classifiers/haarcascade_frontalface_alt.xml";
-		nameMapDataFile = dataDir + "/faces/namemap.txt";
-		trainingDataFile = dataDir + "/faces/training.txt";
+		classifierPath1 = Paths.get(dataDir, "classifiers", "haarcascade_frontalface_alt.xml").toString();
+		nameMapDataFile = Paths.get(dataDir, "faces", "namemap.txt").toString();
+		trainingDataFile = Paths.get(dataDir, "faces", "training.txt").toString();
 		
 		System.out.println("datadir=" + dataDir);
 		System.out.println("classifierPath1=" + classifierPath1);
