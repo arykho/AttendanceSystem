@@ -1,7 +1,4 @@
-# Attendance system
-
-Automated Attendance System Using Facial Recognition
-Authors: Arya Khokhar
+# Automated Attendance System Using Facial Recognition
 
 Introduction: 
 
